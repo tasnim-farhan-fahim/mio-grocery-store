@@ -264,21 +264,37 @@ class AdminController extends BaseController
                 return;
             }
 
-            // Split statements by semicolon followed by newline to avoid breaking function bodies
-            $statements = array_filter(array_map('trim', preg_split('/;\s*\n/', $sql)));
+            // Split statements by semicolon followed by any newline (Windows/Unix)
+            $statements = preg_split('/;\s*\R/m', $sql);
             $executed = 0;
             try {
+                // Disable FK checks for session to avoid constraint errors during DROP/INSERT
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
                 foreach ($statements as $stmt) {
-                    // Skip comment-only blocks
-                    $trim = ltrim($stmt);
-                    if ($trim === '' || strpos($trim, '--') === 0) { continue; }
-                    $pdo->exec($stmt);
+                    if (!is_string($stmt)) { continue; }
+                    // Remove block comments /* ... */ and line comments starting with --
+                    $noBlock = preg_replace('/\/\*.*?\*\//s', '', $stmt);
+                    $lines = preg_split('/\R/', (string)$noBlock);
+                    $cleanLines = [];
+                    foreach ($lines as $line) {
+                        if (preg_match('/^\s*--/', $line)) { continue; }
+                        // Skip DELIMITER directives if present
+                        if (preg_match('/^\s*DELIMITER\b/i', $line)) { continue; }
+                        $cleanLines[] = $line;
+                    }
+                    $clean = trim(implode("\n", $cleanLines));
+                    if ($clean === '') { continue; }
+                    $pdo->exec($clean);
                     $executed++;
                 }
+                // Re-enable FK checks
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
                 $this->setFlash('success', 'Import completed. Executed ' . $executed . ' statements.');
                 header('Location: ' . $this->baseUrl('admin/dashboard'));
                 return;
             } catch (\Exception $e) {
+                // Ensure FK checks are re-enabled even on error
+                try { $pdo->exec('SET FOREIGN_KEY_CHECKS=1'); } catch (\Exception $ie) {}
                 $this->setFlash('error', 'Import failed: ' . $e->getMessage());
                 header('Location: ' . $this->baseUrl('admin/import-products'));
                 return;

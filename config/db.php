@@ -29,12 +29,19 @@ try {
         if ($schemaSql === false) {
             throw new RuntimeException('Unable to read schema file.');
         }
-        // Split statements on semicolons while preserving multi-line statements.
-        $statements = array_filter(array_map('trim', preg_split('/;\s*\n/', $schemaSql)));
+        // Split statements on semicolons while preserving multi-line statements and comments.
+        $statements = preg_split('/;\s*\R/m', $schemaSql);
         foreach ($statements as $sql) {
-            // Skip comments and empties.
-            if ($sql === '' || preg_match('/^--/m', $sql)) continue;
-            $serverPdo->exec($sql);
+            // Remove inline comment lines starting with --
+            $lines = preg_split('/\R/', (string)$sql);
+            $cleanLines = [];
+            foreach ($lines as $line) {
+                if (preg_match('/^\s*--/', $line)) { continue; }
+                $cleanLines[] = $line;
+            }
+            $clean = trim(implode("\n", $cleanLines));
+            if ($clean === '') { continue; }
+            $serverPdo->exec($clean);
         }
         // After creation, seed default admin if none exists
         $appPdo = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4', DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
