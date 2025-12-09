@@ -115,6 +115,14 @@ switch ($uri) {
         $c = new AdminController();
         $c->analytics();
         break;
+    case 'admin/import-products':
+        $c = new AdminController();
+        $c->importProducts();
+        break;
+    case 'admin/export-products':
+        $c = new AdminController();
+        $c->exportProducts();
+        break;
     // User routes
     case 'dashboard':
         $c = new UserController();

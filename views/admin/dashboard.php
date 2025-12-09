@@ -14,6 +14,9 @@
     <a class="btn lg" href="<?= htmlspecialchars($this->baseUrl('products')) ?>">🛍️ Manage Products</a>
     <a class="btn lg secondary" href="<?= htmlspecialchars($this->baseUrl('admin/orders')) ?>">📦 View Orders</a>
     <a class="btn lg light" href="<?= htmlspecialchars($this->baseUrl('admin/analytics')) ?>">📊 Sales Analytics</a>
+    <a class="btn lg secondary" href="<?= htmlspecialchars($this->baseUrl('admin/export-products')) ?>">⬇️ Export Products</a>
+      <a class="btn lg secondary" href="<?= htmlspecialchars($this->baseUrl('admin/import-products')) ?>">⬆️ Import Products SQL</a>
+    
   </div>
 
   <h3>Recent Orders</h3>

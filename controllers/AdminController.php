@@ -179,4 +179,113 @@ class AdminController extends BaseController
             'daily' => $daily,
         ]);
     }
+
+    // Export the entire products table as a XAMPP/phpMyAdmin-importable .sql file
+    public function exportProducts()
+    {
+        $this->requireAdmin();
+        global $pdo;
+
+        $filename = 'products_export_' . date('Ymd_His') . '.sql';
+        header('Content-Type: application/sql; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        echo "-- Mio Grocery Store: products table export\n";
+        echo "-- Generated: " . date('c') . "\n\n";
+        echo "SET FOREIGN_KEY_CHECKS=0;\n";
+
+        // Table DDL
+        $row = $pdo->query('SHOW CREATE TABLE `products`')->fetch(\PDO::FETCH_NUM);
+        $createSql = $row[1] ?? '';
+        echo "DROP TABLE IF EXISTS `products`;\n";
+        echo $createSql . ";\n\n";
+
+        // Columns
+        $cols = $pdo->query('SHOW COLUMNS FROM `products`')->fetchAll();
+        $colNames = array_map(function($c){ return $c['Field']; }, $cols);
+        $colList = '`' . implode('`,`', $colNames) . '`';
+
+        // Data rows
+        $rows = $pdo->query('SELECT * FROM `products`')->fetchAll();
+        if ($rows && count($rows) > 0) {
+            echo "LOCK TABLES `products` WRITE;\n";
+            echo "INSERT INTO `products` (" . $colList . ") VALUES\n";
+            $lines = [];
+            foreach ($rows as $r) {
+                $vals = [];
+                foreach ($colNames as $cn) {
+                    $v = $r[$cn];
+                    if ($v === null) {
+                        $vals[] = 'NULL';
+                    } else {
+                        $vals[] = $pdo->quote($v);
+                    }
+                }
+                $lines[] = '(' . implode(',', $vals) . ')';
+            }
+            echo implode(",\n", $lines) . ";\n";
+            echo "UNLOCK TABLES;\n\n";
+        }
+
+        echo "SET FOREIGN_KEY_CHECKS=1;\n";
+        exit;
+    }
+
+    // Import products table data from an uploaded .sql dump
+    public function importProducts()
+    {
+        $this->requireAdmin();
+        global $pdo;
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!$this->verifyCsrf($_POST['csrf'] ?? '')) { die('Bad CSRF token'); }
+
+            if (!isset($_FILES['sql_file']) || $_FILES['sql_file']['error'] !== UPLOAD_ERR_OK) {
+                $this->setFlash('error', 'Upload failed. Please select a .sql file.');
+                header('Location: ' . $this->baseUrl('admin/import-products'));
+                return;
+            }
+
+            $file = $_FILES['sql_file'];
+            $maxSize = 5 * 1024 * 1024; // 5MB
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if ($ext !== 'sql' || $file['size'] <= 0 || $file['size'] > $maxSize) {
+                $this->setFlash('error', 'Invalid file. Only .sql up to 5MB allowed.');
+                header('Location: ' . $this->baseUrl('admin/import-products'));
+                return;
+            }
+
+            $sql = file_get_contents($file['tmp_name']);
+            if ($sql === false) {
+                $this->setFlash('error', 'Could not read uploaded file.');
+                header('Location: ' . $this->baseUrl('admin/import-products'));
+                return;
+            }
+
+            // Split statements by semicolon followed by newline to avoid breaking function bodies
+            $statements = array_filter(array_map('trim', preg_split('/;\s*\n/', $sql)));
+            $executed = 0;
+            try {
+                foreach ($statements as $stmt) {
+                    // Skip comment-only blocks
+                    $trim = ltrim($stmt);
+                    if ($trim === '' || strpos($trim, '--') === 0) { continue; }
+                    $pdo->exec($stmt);
+                    $executed++;
+                }
+                $this->setFlash('success', 'Import completed. Executed ' . $executed . ' statements.');
+                header('Location: ' . $this->baseUrl('admin/dashboard'));
+                return;
+            } catch (\Exception $e) {
+                $this->setFlash('error', 'Import failed: ' . $e->getMessage());
+                header('Location: ' . $this->baseUrl('admin/import-products'));
+                return;
+            }
+        }
+
+        // GET: show simple upload form
+        $this->render('admin/import_products', [ 'csrf' => $this->csrfToken() ]);
+    }
 }

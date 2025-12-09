@@ -22,5 +22,3 @@ Next steps / improvements:
 - Implement transactions/payments and receipts (PDF generation).
 
 Notes: This is a minimal scaffold to help you extend features quickly.
-## Username: Administrator
-## Password: admin123
