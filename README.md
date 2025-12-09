@@ -8,6 +8,11 @@ Quick start (Windows, XAMPP):
 4. Update DB credentials in `config/db.php` if needed.
 5. Open http://localhost/grocery_store/ in your browser.
 
+Default Admin Credentials
+
+- Username: `admin@mio.local`or `Administrator`
+- Password: `admin123`
+
 What is included:
 - Basic front controller `index.php` with tiny router.
 - `config/db.php` PDO connection.
